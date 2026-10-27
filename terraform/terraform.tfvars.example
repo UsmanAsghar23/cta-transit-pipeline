@@ -1,0 +1,7 @@
+# Copy to terraform.tfvars (gitignored) and edit.
+bucket_name = "cta-transit-lake-yourname"
+
+# Leave these commented out for the first apply. Fill them in from
+# DESC INTEGRATION CTA_S3_INT in Phase 4, then run terraform apply again.
+# snowflake_iam_user_arn = "arn:aws:iam::123456789012:user/abc1-s-xxxx1234"
+# snowflake_external_id  = "XY12345_SFCRole=1_abcdefg="

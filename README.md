@@ -19,6 +19,26 @@ Collects live CTA bus and train positions every 3 minutes, lands them in an S3 d
 3. `cp .env.example .env` and paste in both keys.
 4. `python scripts/try_api.py`
 
+## Phase 2: AWS infrastructure (Terraform)
+
+Creates the S3 data lake, a scoped IAM user for Airflow, and the IAM role Snowflake will assume.
+
+```bash
+brew install hashicorp/tap/terraform awscli
+aws sso login --profile admin
+export AWS_PROFILE=admin
+
+cd terraform
+cp terraform.tfvars.example terraform.tfvars   # set a globally unique bucket_name
+terraform init
+terraform apply
+
+terraform output                                  # bucket, role ARN, access key ID
+terraform output -raw airflow_secret_access_key   # secret key (shown once here, keep it out of git)
+```
+
+State is kept locally (`terraform.tfstate`, gitignored). It contains the Airflow secret key, so don't commit or share it.
+
 ### API budget
 
 Bus Tracker allows 100,000 calls/day per key (CTA raised it from 50,000 in April 2024). With ~130 routes batched 10 per call, one poll is ~14 calls; every 3 minutes that's 480 polls × ~15 calls ≈ 7,200 calls/day. Train Tracker needs one call per poll for all 8 lines (480/day).
