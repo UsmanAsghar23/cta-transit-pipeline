@@ -7,6 +7,11 @@ variable "aws_region" {
 variable "bucket_name" {
   description = "Globally unique S3 bucket name for the data lake."
   type        = string
+
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.bucket_name))
+    error_message = "S3 bucket names must be 3-63 characters of lowercase letters, numbers, dots, and hyphens."
+  }
 }
 
 variable "vehicle_retention_days" {
