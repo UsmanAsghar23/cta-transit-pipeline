@@ -1,0 +1,38 @@
+# Secrets: never commit these
+.env
+*.env
+!.env.example
+*.tfvars
+!*.tfvars.example
+*.pem
+*.p8
+airflow/include/keys/*
+!airflow/include/keys/.gitkeep
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl.bak
+crash.log
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+dbt/.user.yml
+
+# Airflow / Astro
+airflow/logs/
+airflow/.astro/airflow_settings.yaml.bak
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

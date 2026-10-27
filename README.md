@@ -1,0 +1,24 @@
+# Chicago Transit Reliability Pipeline
+
+Collects live CTA bus and train positions every 3 minutes, lands them in an S3 data lake, loads them into Snowflake, and uses dbt to compute on-time performance by route and hour.
+
+> Work in progress — built in phases. Full docs arrive in Phase 6.
+
+## Phase 1: API client
+
+1. Get API keys:
+   - **Bus Tracker:** create an account at [ctabustracker.com](https://www.ctabustracker.com), sign in, open *My Account*, and follow the *Developer API* link.
+   - **Train Tracker:** apply via the [Train Tracker developer page](https://www.transitchicago.com/developers/traintracker/).
+2. Set up a Python 3.11 environment (dbt doesn't support 3.14 yet, so we standardize on 3.11):
+   ```bash
+   brew install python@3.11
+   python3.11 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements-dev.txt
+   ```
+3. `cp .env.example .env` and paste in both keys.
+4. `python scripts/try_api.py`
+
+### API budget
+
+Bus Tracker allows 100,000 calls/day per key (CTA raised it from 50,000 in April 2024). With ~130 routes batched 10 per call, one poll is ~14 calls; every 3 minutes that's 480 polls × ~15 calls ≈ 7,200 calls/day. Train Tracker needs one call per poll for all 8 lines (480/day).
