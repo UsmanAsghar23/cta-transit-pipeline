@@ -33,7 +33,8 @@ GRANT OWNERSHIP ON DATABASE CTA TO ROLE CTA_ROLE COPY CURRENT GRANTS;
 
 -- Let SYSADMIN (and you) see and manage the project's objects.
 GRANT ROLE CTA_ROLE TO ROLE SYSADMIN;
-SET my_user = CURRENT_USER();
+-- Quoted so usernames containing dots or lowercase (e.g. first.last) still resolve.
+SET my_user = '"' || CURRENT_USER() || '"';
 GRANT ROLE CTA_ROLE TO USER IDENTIFIER($my_user);
 
 
