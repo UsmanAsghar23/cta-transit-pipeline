@@ -39,6 +39,25 @@ terraform output -raw airflow_secret_access_key   # secret key (shown once here,
 
 State is kept locally (`terraform.tfstate`, gitignored). It contains the Airflow secret key, so don't commit or share it.
 
+## Phase 3: Airflow ingestion into S3
+
+Airflow runs locally in Docker via the [Astro CLI](https://www.astronomer.io/docs/astro/cli/overview) (Astro Runtime 3.x, Airflow 3).
+
+```bash
+brew install astro
+cd airflow
+cp .env.example .env    # fill in keys, bucket, and the AWS connection JSON
+astro dev start         # UI at http://localhost:8080
+astro dev pytest        # DAG integrity + unit tests
+```
+
+| DAG | Schedule | What it does |
+| --- | --- | --- |
+| `cta_ingest` | every 3 min | Fetches all buses and trains, writes `vehicles/source=<bus\|train>/date=YYYY-MM-DD/hour=HH/<source>_<ts>.json.gz` |
+| `cta_freshness` | every 15 min | Fails (and alerts Slack, if `SLACK_WEBHOOK_URL` is set) when a source's newest file is older than 15 min |
+
+Data only collects while your laptop and Docker are running; sleep shows up as gaps.
+
 ### API budget
 
 Bus Tracker allows 100,000 calls/day per key (CTA raised it from 50,000 in April 2024). With ~130 routes batched 10 per call, one poll is ~14 calls; every 3 minutes that's 480 polls × ~15 calls ≈ 7,200 calls/day. Train Tracker needs one call per poll for all 8 lines (480/day).
