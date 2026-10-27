@@ -69,7 +69,7 @@ Data only collects while your laptop and Docker are running; sleep shows up as g
    ```
 2. **Run [`snowflake/setup.sql`](snowflake/setup.sql)** as ACCOUNTADMIN, sections 1–3. Section 3 ends with `DESC INTEGRATION`: copy `STORAGE_AWS_IAM_USER_ARN` and `STORAGE_AWS_EXTERNAL_ID` into `terraform/terraform.tfvars`, then `terraform apply` so the IAM role trusts Snowflake.
 3. **Run sections 4–7.** The `LIST` and smoke-test `COPY` confirm Snowflake can read the bucket.
-4. **Add `AIRFLOW_CONN_SNOWFLAKE_DEFAULT`** to `airflow/.env` (see `.env.example`), `astro dev restart`, then unpause `cta_load_snowflake` and trigger `cta_gtfs` once.
+4. **Add `AIRFLOW_CONN_SNOWFLAKE_DEFAULT`** to `airflow/.env` (see `.env.example`), `astro dev restart`, then unpause `cta_load_snowflake` and trigger `cta_gtfs` once. The connection needs `"authenticator":"SNOWFLAKE_JWT"`; recent Snowflake connectors refuse a private key without it.
 
 | DAG | Schedule | What it does |
 | --- | --- | --- |

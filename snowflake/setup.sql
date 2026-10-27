@@ -120,16 +120,18 @@ LIST @CTA_LAKE/vehicles/ PATTERN = '.*source=train.*';
 
 -- Keep the raw JSON untouched; dbt does all parsing, so a parsing bug never
 -- requires re-ingesting from S3.
+-- SYSDATE() is UTC. CURRENT_TIMESTAMP() would store the session's local time
+-- (Pacific by default), and dbt source freshness assumes NTZ values are UTC.
 CREATE TABLE IF NOT EXISTS BUS_POSITIONS_RAW (
   record      VARIANT,
   source_file STRING,
-  loaded_at   TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+  loaded_at   TIMESTAMP_NTZ DEFAULT SYSDATE()
 );
 
 CREATE TABLE IF NOT EXISTS TRAIN_POSITIONS_RAW (
   record      VARIANT,
   source_file STRING,
-  loaded_at   TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+  loaded_at   TIMESTAMP_NTZ DEFAULT SYSDATE()
 );
 
 
