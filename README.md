@@ -210,6 +210,9 @@ Distributed under the MIT License. See [`LICENSE`](LICENSE) for more information
 
 ## ✉️ Contact
 
-Usman Asghar - [GitHub @UsmanAsghar23](https://github.com/UsmanAsghar23) - [LinkedIn](https://www.linkedin.com/in/your-profile) - your.email@example.com
+Usman Asghar 
+- [GitHub @UsmanAsghar23](https://github.com/UsmanAsghar23) 
+- [LinkedIn @Usmanasghar23](https://www.linkedin.com/in/usmanasghar23/) 
+- usmanasghar2121@gmail.com
 
 Project Link: [https://github.com/UsmanAsghar23/cta-transit-pipeline](https://github.com/UsmanAsghar23/cta-transit-pipeline)
