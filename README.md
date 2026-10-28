@@ -1,5 +1,7 @@
-# Chicago Transit Reliability Pipeline
+# 🚇 Chicago Transit Reliability Pipeline
 
+[![dbt CI](https://github.com/UsmanAsghar23/cta-transit-pipeline/actions/workflows/dbt-ci.yml/badge.svg)](https://github.com/UsmanAsghar23/cta-transit-pipeline/actions/workflows/dbt-ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
 ![Apache Airflow](https://img.shields.io/badge/Apache%20Airflow-3-017CEE?logo=apacheairflow&logoColor=white)
 ![Snowflake](https://img.shields.io/badge/Snowflake-29B5E8?logo=snowflake&logoColor=white)
@@ -9,7 +11,27 @@
 ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
 ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)
 
-An end-to-end data pipeline that measures how reliably Chicago's buses and 'L' trains run. Every 3 minutes, Airflow snapshots the live position of every CTA bus and train from the Bus Tracker and Train Tracker APIs and lands it as gzipped JSON in an S3 data lake. Each hour, Snowflake loads the new files idempotently. dbt then parses, deduplicates, and tests the data and builds an hourly on-time-performance mart by route. Infrastructure is defined in Terraform, and GitHub Actions runs the dbt build and tests on every pull request.
+An end-to-end data pipeline that measures how reliably Chicago's buses and 'L' trains run. It snapshots every CTA vehicle every 3 minutes, lands the data in an S3 lake, loads it into Snowflake, and uses dbt to build a tested, hourly on-time-performance mart by route.
+
+---
+
+## 🎨 Demo / Preview
+
+**One hour of the CTA network**, drawn only from live position reports. Buses are light blue, 'L' trains are in their official line colors, and gold rings mark pings CTA flagged as delayed.
+
+![Map of one hour of CTA bus and train positions](results/charts/network_map.png)
+
+**On-time share by hour of day.** This is the share of position pings that CTA did not flag as delayed.
+
+![On-time share by hour, bus vs train](results/charts/on_time_by_hour.png)
+
+**Least on-time routes**, among routes with at least 100 pings.
+
+![Least on-time routes](results/charts/worst_routes.png)
+
+From the first evening of collection: buses were **99.1%** on time and trains **99.3%**. The least reliable route was **Bus 103 West 103rd at 93.0%**. The charts update as more data accumulates (see [Usage](#-usage)).
+
+### Architecture
 
 ```mermaid
 flowchart LR
@@ -23,121 +45,104 @@ flowchart LR
   GHA[GitHub Actions] -.->|"dbt build --target ci on every PR"| Staging
 ```
 
-**Stack:** Python, Apache Airflow 3 (Astro CLI + Docker), AWS S3 and IAM, Terraform, Snowflake, dbt (dbt_utils), GitHub Actions.
+## ✨ Features
 
-## Results
+- **Live ingestion:** Airflow polls the Bus Tracker and Train Tracker APIs every 3 minutes, collecting about 10,000 bus and 800 train position reports per hour. It writes gzipped NDJSON to S3, partitioned by UTC date and hour.
+- **Idempotent warehouse loads:** an hourly `COPY INTO` reads the current and previous hour. Snowflake's load history skips files it has already loaded, so retries and backfills never create duplicate rows.
+- **Tested dbt models:** incremental staging models parse and deduplicate the raw JSON, and a mart computes on-time ratio per mode, route, and Chicago-local hour. The project has 38 data tests and source freshness checks.
+- **Pipeline monitoring:** a freshness DAG fails, and can alert Slack, when no new file has arrived in 15 minutes.
+- **Infrastructure as code:** Terraform creates the S3 bucket, a least-privilege IAM user for Airflow, and the IAM role Snowflake assumes.
+- **CI-gated merges:** GitHub Actions runs `dbt build` against a separate `CI` schema on every PR that touches dbt, and a branch ruleset blocks merging when it fails.
 
-> Placeholder: add headline numbers here (e.g. system-wide on-time ratio, worst routes and hours, bus vs train). Charts below are from the first evening of collection; regenerate them as data accumulates.
+## 🛠️ Built With
 
-**One hour of the network.** Every grey dot is a bus position report; 'L' trains are in their official line colors; circled points were flagged delayed by CTA.
+- [Apache Airflow 3](https://airflow.apache.org/) via the [Astro CLI](https://www.astronomer.io/docs/astro/cli/overview): orchestration, running locally in Docker
+- [AWS S3 and IAM](https://aws.amazon.com/s3/): the raw data lake, with encryption, blocked public access, and a 90-day lifecycle rule
+- [Terraform](https://www.terraform.io/): AWS infrastructure
+- [Snowflake](https://www.snowflake.com/): the warehouse, using a storage integration, an external stage, and key-pair authentication
+- [dbt Core](https://www.getdbt.com/) and [dbt_utils](https://hub.getdbt.com/dbt-labs/dbt_utils/latest/): transformations, tests, and freshness checks
+- [GitHub Actions](https://github.com/features/actions): CI for dbt
+- [pandas](https://pandas.pydata.org/) and [seaborn](https://seaborn.pydata.org/): result charts
+- [CTA Bus Tracker](https://www.transitchicago.com/developers/bustracker/), [Train Tracker](https://www.transitchicago.com/developers/traintracker/), and [GTFS](https://www.transitchicago.com/developers/gtfs/): the data sources
 
-![Map of one hour of CTA bus and train positions](results/charts/network_map.png)
+---
 
-**On-time share by hour of day** (v1 definition: share of pings CTA did not flag as delayed).
+## 🚀 Getting Started
 
-![On-time share by hour, bus vs train](results/charts/on_time_by_hour.png)
+### 📋 Prerequisites
 
-**Least on-time routes** (routes with at least 100 pings).
-
-![Least on-time routes](results/charts/worst_routes.png)
-
-To refresh the CSVs in [`results/`](results/) and the charts (also keeps the numbers after the Snowflake trial ends):
-
-```bash
-python scripts/export_mart.py    # mart, recent positions, and summary -> results/*.csv
-python scripts/make_charts.py    # results/charts/*.png
-```
-
-## Repository layout
-
-```
-├── airflow/              # Astro CLI project
-│   ├── dags/             # cta_ingest, cta_freshness, cta_load_snowflake, cta_gtfs (+ sql/ templates)
-│   ├── include/          # cta_client.py, s3_writer.py, alerts.py, keys/ (gitignored)
-│   └── tests/            # DAG integrity + unit tests (astro dev pytest)
-├── dbt/                  # dbt project cta_transit (staging -> marts, 38 tests)
-├── snowflake/setup.sql   # warehouse, roles, service user, storage integration, stage, raw tables
-├── terraform/            # S3 bucket, Airflow IAM user, Snowflake IAM role
-├── scripts/              # try_api.py (smoke test), export_mart.py (CSV export), make_charts.py
-├── results/              # exported CSVs and charts/
-└── .github/workflows/    # dbt CI
-```
-
-## Setup
-
-Prerequisites: Python 3.11, Docker, `brew install hashicorp/tap/terraform awscli astro`, an AWS account, a Snowflake trial (AWS US East (Ohio), to match the bucket region), and CTA API keys.
+- Python 3.11 and Docker Desktop
+- An AWS account, a Snowflake trial in AWS US East (Ohio) to match the bucket region, and CTA [Bus Tracker](https://www.transitchicago.com/developers/bustracker/) and [Train Tracker](https://www.transitchicago.com/developers/traintracker/) API keys
 
 ```bash
-python3.11 -m venv .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt -r dbt/requirements.txt
-cp .env.example .env                     # fill in values as you go
+brew install hashicorp/tap/terraform awscli astro
 ```
 
-### 1. CTA API client
+### ⚙️ Installation
 
-Get a [Bus Tracker key](https://www.transitchicago.com/developers/bustracker/) (create a Bus Tracker account, then My Account, then Developer API) and a [Train Tracker key](https://www.transitchicago.com/developers/traintracker/). Put both in `.env`, then:
+1. Clone the repository and install the local tools.
+   ```bash
+   git clone https://github.com/UsmanAsghar23/cta-transit-pipeline.git
+   cd cta-transit-pipeline
+   python3.11 -m venv .venv && source .venv/bin/activate
+   pip install -r requirements-dev.txt -r dbt/requirements.txt
+   cp .env.example .env                     # CTA keys and Snowflake settings
+   python scripts/try_api.py                # smoke test: prints one bus and one train
+   ```
+2. **AWS (Terraform):** set a globally unique, lowercase `bucket_name`.
+   ```bash
+   cd terraform
+   cp terraform.tfvars.example terraform.tfvars
+   terraform init && terraform apply
+   terraform output                                # bucket, role ARN, access key ID
+   terraform output -raw airflow_secret_access_key
+   ```
+3. **Airflow:** fill in the API keys, the bucket, and the AWS connection, then unpause the DAGs in the UI.
+   ```bash
+   cd airflow
+   cp .env.example .env
+   astro dev start
+   astro dev pytest                          # DAG integrity and unit tests
+   ```
+4. **Snowflake:**
+   - Generate a key pair for the service user. It's gitignored and stays on your machine.
+     ```bash
+     cd airflow/include/keys
+     openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out cta_svc_key.p8 -nocrypt
+     openssl rsa -in cta_svc_key.p8 -pubout -out cta_svc_key.pub
+     ```
+   - Run sections 1–3 of [`snowflake/setup.sql`](snowflake/setup.sql) in Snowsight as ACCOUNTADMIN.
+   - Copy `STORAGE_AWS_IAM_USER_ARN` and `STORAGE_AWS_EXTERNAL_ID` from `DESC INTEGRATION` into `terraform.tfvars`, and run `terraform apply` again.
+   - Run sections 4–7 of `setup.sql`.
+   - Add `AIRFLOW_CONN_SNOWFLAKE_DEFAULT` to `airflow/.env` (template in `airflow/.env.example`), then run `astro dev restart`.
+5. **CI:** add the repository secrets `SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USER`, and `SNOWFLAKE_PRIVATE_KEY` (the full `.p8` contents). Then create a branch ruleset on `main` that requires the `dbt-build` status check.
 
-```bash
-python scripts/try_api.py               # prints counts and one sample bus and train
-```
+> 🔒 Secrets live only in gitignored `.env` files, `terraform.tfvars`, and `airflow/include/keys/`. Every committed `*.example` file contains placeholders only.
 
-### 2. AWS infrastructure (Terraform)
+---
 
-```bash
-export AWS_PROFILE=<your admin profile>
-cd terraform
-cp terraform.tfvars.example terraform.tfvars   # set a globally unique, lowercase bucket_name
-terraform init && terraform apply
-terraform output                                # bucket, role ARN, access key ID
-terraform output -raw airflow_secret_access_key
-```
+## 💻 Usage
 
-This creates the bucket (public access blocked, SSE-S3, raw `vehicles/` files expire after 90 days), an IAM user `cta-airflow` limited to that bucket, and an IAM role `cta-snowflake-s3` for Snowflake. The role's trust policy starts with placeholders and gets its real values in step 4. Terraform state is local and gitignored because it contains the access key.
-
-### 3. Airflow ingestion into S3
-
-```bash
-cd airflow
-cp .env.example .env                     # API keys, bucket, AWS connection JSON
-astro dev start                          # prints the UI URL
-astro dev pytest                         # DAG integrity + unit tests
-```
-
-Unpause `cta_ingest` and `cta_freshness` in the UI.
+**Airflow DAGs**
 
 | DAG | Schedule | What it does |
 | --- | --- | --- |
-| `cta_ingest` | every 3 min | Fetches all buses and trains, adds `ingested_at`, writes `vehicles/source=<bus\|train>/date=YYYY-MM-DD/hour=HH/<source>_<ts>.json.gz` |
-| `cta_freshness` | every 15 min | Fails, and alerts Slack if `SLACK_WEBHOOK_URL` is set, when a source's newest file is older than 15 minutes |
-| `cta_load_snowflake` | hourly at :05 | `COPY INTO` raw tables from the run's UTC hour and the previous hour |
-| `cta_gtfs` | weekly | Downloads the GTFS zip, uploads 5 tables (gzipped) to `gtfs/latest/`, truncates and reloads them |
+| `cta_ingest` | every 3 min | Fetches all buses and trains and writes `vehicles/source=<bus\|train>/date=YYYY-MM-DD/hour=HH/*.json.gz` |
+| `cta_freshness` | every 15 min | Fails, and alerts Slack if configured, when a source's newest file is older than 15 minutes |
+| `cta_load_snowflake` | hourly at :05 | `COPY INTO` the raw tables from the run's UTC hour and the previous hour |
+| `cta_gtfs` | weekly | Reloads the GTFS routes, stops, trips, stop times, and calendar |
 
-Data is only collected while your machine and Docker are running.
-
-### 4. Snowflake setup and loading
-
-1. Generate the service user's key pair. It's gitignored and never leaves your machine, except as a GitHub secret in step 6.
-   ```bash
-   cd airflow/include/keys
-   openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out cta_svc_key.p8 -nocrypt
-   openssl rsa -in cta_svc_key.p8 -pubout -out cta_svc_key.pub
-   grep -v -- "-----" cta_svc_key.pub | tr -d '\n'; echo     # public key body for setup.sql
-   ```
-2. In a Snowsight worksheet, run sections 1–3 of [`snowflake/setup.sql`](snowflake/setup.sql) as ACCOUNTADMIN with the placeholders replaced. Copy `STORAGE_AWS_IAM_USER_ARN` and `STORAGE_AWS_EXTERNAL_ID` from `DESC INTEGRATION` into `terraform/terraform.tfvars`, then run `terraform apply` again.
-3. Run sections 4–7. `LIST` and the smoke-test `COPY` confirm that Snowflake can read the bucket.
-4. Add `AIRFLOW_CONN_SNOWFLAKE_DEFAULT` to `airflow/.env`. It needs `"authenticator":"SNOWFLAKE_JWT"`, because recent Snowflake connectors reject a private key without it. Then run `astro dev restart`, unpause `cta_load_snowflake` and `cta_gtfs`, and trigger `cta_gtfs` once.
-
-Backfill a range of hours (safe to repeat; see the design decision on idempotent COPY below):
+**Backfill Snowflake loads.** This is safe to repeat, because already-loaded files are skipped.
 
 ```bash
 astro dev run backfill create --dag-id cta_load_snowflake \
     --from-date 2026-10-27T00:00:00 --to-date 2026-10-28T00:00:00
 ```
 
-### 5. dbt models and tests
+**Build and test the dbt models:**
 
 ```bash
-set -a; source .env; set +a              # SNOWFLAKE_ACCOUNT, SNOWFLAKE_USER, SNOWFLAKE_PRIVATE_KEY_PATH
+set -a; source .env; set +a
 cd dbt
 dbt deps --profiles-dir .
 dbt build --profiles-dir .
@@ -146,43 +151,65 @@ dbt source freshness --profiles-dir .
 
 | Model | Type | Notes |
 | --- | --- | --- |
-| `stg_bus_positions` | incremental (merge) | Parses Bus Tracker JSON; dedupes repeat polls of the same report |
+| `stg_bus_positions` | incremental (merge) | Parses Bus Tracker JSON and dedupes repeat polls of the same report |
 | `stg_train_positions` | incremental (merge) | Parses Train Tracker JSON; 0,0 coordinates (train not placed) become null |
-| `stg_gtfs_routes` / `_stops` / `_trips` / `_stop_times` | views | Typed GTFS; stop times converted to seconds after midnight, including times past 24:00 |
-| `fct_delay_by_route_hour` | table | Position pings, active vehicles, delayed pings, and on-time ratio per mode, route, and Chicago-local hour |
+| `stg_gtfs_*` | views | Typed GTFS tables; stop times become seconds after midnight, including times past 24:00 |
+| `fct_delay_by_route_hour` | table | Pings, active vehicles, delayed pings, and on-time ratio per mode, route, and local hour |
 
-Tests (38): `not_null` and `unique` on keys, `unique_combination_of_columns` on composite keys, `accepted_values` on train line and mode, warn-level Chicago bounding-box checks on coordinates, `on_time_ratio` between 0 and 1, `relationships` (trips to routes, stop times to trips), and a singular test that no bus reports from more than an hour in the future. Source freshness warns after 2 hours and errors after 6.
+**Export the results and redraw the charts.** This also keeps the numbers after the Snowflake trial ends.
 
-### 6. CI and branch protection
+```bash
+python scripts/export_mart.py    # results/*.csv
+python scripts/make_charts.py    # results/charts/*.png
+```
 
-1. Push the repo to GitHub.
-2. Under **Settings → Secrets and variables → Actions → New repository secret**, add:
-   - `SNOWFLAKE_ACCOUNT`, e.g. `ORGNAME-ACCOUNTNAME`
-   - `SNOWFLAKE_USER`: `CTA_SVC`
-   - `SNOWFLAKE_PRIVATE_KEY`: the full contents of `cta_svc_key.p8`, including the `-----BEGIN/END PRIVATE KEY-----` lines
-3. Open any pull request that touches `dbt/`. The **dbt CI / dbt-build** check runs `dbt build --target ci` into the `CI` schema.
-4. To require the check before merging, go to **Settings → Rules → Rulesets → New branch ruleset**. Set the target to the default branch, enable **Require a pull request before merging** and **Require status checks to pass**, add the `dbt-build` check, and set **Enforcement status** to **Active**. Classic **Settings → Branches → Add branch protection rule** with "Require status checks to pass before merging" works too.
+### Design decisions
 
-The workflow runs on every PR, but the dbt job only runs when `dbt/` changes. A skipped job counts as passing, so PRs that don't touch dbt aren't stuck waiting on a required check that never reports.
+- **UTC partitions:** Chicago local time repeats an hour every November and skips one every March, which would create duplicate or missing partitions. Vehicle timestamps stay in Chicago local time in dbt, because riders experience schedules in local time.
+- **Always write a file:** the ingest DAG writes a snapshot even overnight when no vehicles are running, so the freshness check measures pipeline health rather than bus activity.
+- **Raw JSON as VARIANT:** all parsing happens in dbt, so a parsing bug is fixed with a code change and a rebuild, never a re-ingest.
+- **GTFS columns are strings:** GTFS times like `25:30:00` (trips running past midnight) aren't valid `TIME` values, so dbt casts them deliberately.
+- **Key-pair authentication:** `CTA_SVC` is a `TYPE = SERVICE` user that can't use a password at all.
+- **UTC `loaded_at`:** `SYSDATE()` stores UTC. `CURRENT_TIMESTAMP()` would store Pacific time in a `TIMESTAMP_NTZ` column and make freshness checks think the data is 7 hours stale.
+- **Cheap CI:** the `ci` target reads only the last 2 days of raw data, and the job only runs when `dbt/` changes.
 
-## Design decisions
+### Cost
 
-- **UTC partitions.** S3 paths use `date=/hour=` in UTC. Chicago local time repeats an hour every November and skips one every March, which would create duplicate or missing partitions. UTC partitions also map cleanly to the hourly COPY windows. Vehicle timestamps stay in Chicago local time in dbt, because riders experience schedules in local time.
-- **Always write a file.** `cta_ingest` writes a snapshot even when no vehicles are running (overnight), so `cta_freshness` measures whether the pipeline is healthy, not whether buses happen to be out.
-- **Idempotent COPY.** Snowflake records which files each table has loaded (for 64 days) and skips them on later `COPY` runs. Each hourly run loads its hour plus the previous one, so a late file gets picked up next hour. Retries and backfills never duplicate rows, which makes "re-run it" the answer to most load failures.
-- **Raw JSON as VARIANT.** Raw tables store each API record untouched, and all parsing happens in dbt. A parsing bug is a code fix and a rebuild, never a re-ingest.
-- **GTFS columns are strings.** GTFS times like `25:30:00` (trips that run past midnight) aren't valid `TIME` values, and type inference could mangle IDs. Everything lands as `STRING`, and dbt casts deliberately, converting times to seconds after midnight.
-- **Key-pair authentication.** Snowflake is phasing out password-only logins. `CTA_SVC` is a `TYPE = SERVICE` user that can't use a password at all. Airflow and dbt sign in with a private key file locally, and CI uses the key from a GitHub secret.
-- **UTC `loaded_at`.** Raw tables default `loaded_at` to `SYSDATE()` (UTC). `CURRENT_TIMESTAMP()` would store Pacific time in a `TIMESTAMP_NTZ` column, and dbt source freshness would then think the data was always 7 hours stale.
-- **Incremental staging.** Position models merge only rows loaded since the last run, with a 1-hour overlap that the unique-key merge absorbs. The `ci` target reads only the last 2 days, so CI stays fast as raw tables grow.
+- **Snowflake:** an XS warehouse with `AUTO_SUSPEND = 60` wakes for about a minute per hour, which fits within the trial credits.
+- **AWS:** a few MB of S3 storage and about 960 PUT requests per day, near the free tier.
+- **CTA API:** the pipeline uses about 6,700 of the Bus Tracker's 100,000 daily calls, and one Train Tracker call per poll covers all 8 lines.
 
-### On-time definition: v1 vs v2
+---
 
-- **v1 (current):** a ping is delayed if CTA flags it (bus `dly`, train `isDly`), and `on_time_ratio = 1 - delayed_pings / position_pings`. It's simple, consistent across modes, and directly reflects CTA's own system, but it's CTA's definition of "delayed".
-- **v2 (planned):** compute lateness independently by comparing actual positions against GTFS scheduled stop times. Open issue: in a sample of 365 live buses, neither the API's `tatripid` nor `origtatripno` matched GTFS `schd_trip_id`, so the trip match will likely need route, block, and scheduled start time instead.
+## 🗺️ Roadmap
 
-## Cost notes
+- [x] Live bus and train ingestion into S3 with freshness alerts
+- [x] Idempotent hourly loads into Snowflake
+- [x] dbt staging models, an on-time mart, and 38 tests
+- [x] GitHub Actions CI gating merges
+- [ ] **v2 on-time definition:** measure lateness against GTFS scheduled stop times instead of CTA's delay flag. In a sample of 365 buses, neither `tatripid` nor `origtatripno` matched GTFS trip IDs, so the match will need route, block, and scheduled start time instead.
+- [ ] Deploy Airflow to a managed host so collection runs 24/7
+- [ ] A dashboard (Streamlit or Snowsight) on top of the mart
 
-- **Snowflake:** an XS warehouse (1 credit/hour) with `AUTO_SUSPEND = 60` and `INITIALLY_SUSPENDED`. Hourly loads and dbt runs take seconds, so the warehouse is awake about a minute per hour. The 30-day trial's free credits cover this comfortably. Export results with `scripts/export_mart.py` before the trial ends.
-- **AWS:** S3 storage is a few MB per day (about 62 KB per bus snapshot and 3.5 KB per train snapshot, 480 of each per day). PUT requests (about 960 per day) and storage stay within or close to the free tier. A lifecycle rule deletes raw vehicle files after 90 days.
-- **CTA API budget:** the Bus Tracker allows 100,000 calls per day. With 125 routes batched 10 per call, each poll makes 13 vehicle calls plus 1 route-list call, so 480 polls per day come to about 6,700 calls. The Train Tracker makes one call per poll for all 8 lines (480 per day).
+---
+
+## 🤝 Contributing
+
+Contributions are welcome:
+1. **Fork** the project.
+2. Create a **feature branch** (`git checkout -b feature/AmazingFeature`).
+3. **Commit** your changes (`git commit -m 'Add some AmazingFeature'`).
+4. **Push** the branch (`git push origin feature/AmazingFeature`).
+5. Open a **pull request**. The dbt CI check must pass before merging.
+
+---
+
+## 📄 License
+
+Distributed under the MIT License. See [`LICENSE`](LICENSE) for more information. Transit data is provided by the Chicago Transit Authority under its [developer terms](https://www.transitchicago.com/developers/terms/).
+
+## ✉️ Contact
+
+Usman Asghar - [GitHub @UsmanAsghar23](https://github.com/UsmanAsghar23) - [LinkedIn](https://www.linkedin.com/in/your-profile) - your.email@example.com
+
+Project Link: [https://github.com/UsmanAsghar23/cta-transit-pipeline](https://github.com/UsmanAsghar23/cta-transit-pipeline)
