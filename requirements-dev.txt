@@ -2,3 +2,4 @@ requests>=2.31
 python-dotenv>=1.0
 snowflake-connector-python>=3.12
 matplotlib>=3.8
+seaborn>=0.13
