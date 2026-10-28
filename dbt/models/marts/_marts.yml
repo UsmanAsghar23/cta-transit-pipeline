@@ -29,7 +29,7 @@ models:
       - name: position_pings
         data_tests: [not_null]
       - name: on_time_ratio
-        description: 1 - delayed_pings / position_pings.
+        description: 1 - delayed_pings / position_pings (share of pings CTA did not flag as delayed).
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
