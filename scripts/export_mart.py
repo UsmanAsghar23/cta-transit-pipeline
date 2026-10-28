@@ -1,7 +1,7 @@
 """Export the on-time mart to CSV so results survive the end of the Snowflake trial.
 
 Run from the repo root:  python scripts/export_mart.py
-Writes results/fct_delay_by_route_hour.csv and results/summary.csv.
+Writes results/fct_delay_by_route_hour.csv, results/recent_positions.csv, and results/summary.csv.
 """
 
 import csv
@@ -20,6 +20,19 @@ QUERIES = {
         select *
         from CTA.ANALYTICS.FCT_DELAY_BY_ROUTE_HOUR
         order by hour_start, mode, route_id
+    """,
+    # The most recent hour of positions, for the network map in make_charts.py.
+    "recent_positions": """
+        select 'bus' as mode, route_id, round(latitude, 4) as latitude,
+               round(longitude, 4) as longitude, is_delayed
+        from CTA.ANALYTICS.STG_BUS_POSITIONS
+        where recorded_at >= (select dateadd(hour, -1, max(recorded_at)) from CTA.ANALYTICS.STG_BUS_POSITIONS)
+          and latitude is not null
+        union all
+        select 'train', line, round(latitude, 4), round(longitude, 4), is_delayed
+        from CTA.ANALYTICS.STG_TRAIN_POSITIONS
+        where recorded_at >= (select dateadd(hour, -1, max(recorded_at)) from CTA.ANALYTICS.STG_TRAIN_POSITIONS)
+          and latitude is not null
     """,
     # Headline numbers for the README and resume.
     "summary": """

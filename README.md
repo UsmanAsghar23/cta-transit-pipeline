@@ -1,5 +1,14 @@
 # Chicago Transit Reliability Pipeline
 
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![Apache Airflow](https://img.shields.io/badge/Apache%20Airflow-3-017CEE?logo=apacheairflow&logoColor=white)
+![Snowflake](https://img.shields.io/badge/Snowflake-29B5E8?logo=snowflake&logoColor=white)
+![dbt](https://img.shields.io/badge/dbt-1.12-FF694B?logo=dbt&logoColor=white)
+![Terraform](https://img.shields.io/badge/Terraform-844FBA?logo=terraform&logoColor=white)
+![AWS S3](https://img.shields.io/badge/AWS%20S3-569A31?logo=amazons3&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)
+
 An end-to-end data pipeline that measures how reliably Chicago's buses and 'L' trains run. Every 3 minutes, Airflow snapshots the live position of every CTA bus and train from the Bus Tracker and Train Tracker APIs and lands it as gzipped JSON in an S3 data lake. Each hour, Snowflake loads the new files idempotently. dbt then parses, deduplicates, and tests the data and builds an hourly on-time-performance mart by route. Infrastructure is defined in Terraform, and GitHub Actions runs the dbt build and tests on every pull request.
 
 ```mermaid
@@ -18,9 +27,26 @@ flowchart LR
 
 ## Results
 
-> Placeholder: add charts and headline numbers here (e.g. system-wide on-time ratio, worst routes and hours, bus vs train).
+> Placeholder: add headline numbers here (e.g. system-wide on-time ratio, worst routes and hours, bus vs train). Charts below are from the first evening of collection; regenerate them as data accumulates.
 
-Exports in [`results/`](results/) (`python scripts/export_mart.py`) keep the numbers after the Snowflake trial ends.
+**One hour of the network.** Every grey dot is a bus position report; 'L' trains are in their official line colors; circled points were flagged delayed by CTA.
+
+![Map of one hour of CTA bus and train positions](results/charts/network_map.png)
+
+**On-time share by hour of day** (v1 definition: share of pings CTA did not flag as delayed).
+
+![On-time share by hour, bus vs train](results/charts/on_time_by_hour.png)
+
+**Least on-time routes** (routes with at least 100 pings).
+
+![Least on-time routes](results/charts/worst_routes.png)
+
+To refresh the CSVs in [`results/`](results/) and the charts (also keeps the numbers after the Snowflake trial ends):
+
+```bash
+python scripts/export_mart.py    # mart, recent positions, and summary -> results/*.csv
+python scripts/make_charts.py    # results/charts/*.png
+```
 
 ## Repository layout
 
@@ -32,8 +58,8 @@ Exports in [`results/`](results/) (`python scripts/export_mart.py`) keep the num
 ├── dbt/                  # dbt project cta_transit (staging -> marts, 38 tests)
 ├── snowflake/setup.sql   # warehouse, roles, service user, storage integration, stage, raw tables
 ├── terraform/            # S3 bucket, Airflow IAM user, Snowflake IAM role
-├── scripts/              # try_api.py (smoke test), export_mart.py (CSV export)
-├── results/              # exported mart + summary
+├── scripts/              # try_api.py (smoke test), export_mart.py (CSV export), make_charts.py
+├── results/              # exported CSVs and charts/
 └── .github/workflows/    # dbt CI
 ```
 
