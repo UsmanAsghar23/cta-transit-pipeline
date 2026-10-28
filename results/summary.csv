@@ -1,0 +1,3 @@
+source,total_rows,files_loaded,first_loaded_at,last_loaded_at,avg_rows_per_day
+bus,56457,57,2026-10-27 21:59:09.436000,2026-10-28 02:05:44.347000,56457
+train,4446,57,2026-10-27 21:59:12.956000,2026-10-28 02:05:44.314000,4446

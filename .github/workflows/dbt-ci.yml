@@ -1,0 +1,64 @@
+name: dbt CI
+
+# Runs on every PR so the required check always reports a status; the dbt job
+# itself only runs when dbt/ changed. (A workflow-level `paths:` filter would
+# leave non-dbt PRs stuck at "Expected — waiting for status" once the check
+# is required by branch protection. A skipped job counts as passing.)
+on:
+  pull_request:
+
+# A new push to the same PR cancels the run still in progress.
+concurrency:
+  group: dbt-ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      dbt: ${{ steps.filter.outputs.dbt }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            dbt:
+              - 'dbt/**'
+              - '.github/workflows/dbt-ci.yml'
+
+  dbt-build:
+    needs: changes
+    if: needs.changes.outputs.dbt == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: dbt
+    env:
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+      DBT_PROFILES_DIR: .
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: dbt/requirements.txt
+
+      - name: Install dbt
+        run: pip install -r requirements.txt
+
+      - name: Install dbt packages
+        run: dbt deps
+
+      # Builds into the CI schema from the last 2 days of raw data (see raw_positions_filter).
+      - name: dbt build
+        run: dbt build --target ci

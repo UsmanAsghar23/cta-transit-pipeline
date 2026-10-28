@@ -1,7 +1,8 @@
 select
     route_id,
     route_short_name,
-    route_long_name,
+    -- Some CTA route names carry trailing spaces.
+    trim(route_long_name)     as route_long_name,
     try_to_number(route_type) as route_type,
     -- GTFS route_type: 1 = subway/metro ('L' trains), 3 = bus
     case try_to_number(route_type)
