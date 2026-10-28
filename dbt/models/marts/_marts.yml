@@ -1,0 +1,38 @@
+version: 2
+
+models:
+  - name: fct_delay_by_route_hour
+    description: >
+      On-time performance per mode, route, and Chicago-local hour.
+      v1 uses CTA's own delay flag; v2 will compare positions against GTFS schedules.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [mode, route_id, hour_start]
+    columns:
+      - name: mode
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [bus, train]
+      - name: route_id
+        data_tests: [not_null]
+      - name: route_name
+        description: From GTFS; null if the live route isn't in the current schedule feed.
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: hour_start
+        data_tests: [not_null]
+      - name: position_pings
+        data_tests: [not_null]
+      - name: on_time_ratio
+        description: 1 - delayed_pings / position_pings.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1

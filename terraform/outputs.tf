@@ -20,3 +20,4 @@ output "airflow_secret_access_key" {
   value       = aws_iam_access_key.airflow.secret
   sensitive   = true
 }
+

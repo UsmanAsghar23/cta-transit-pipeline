@@ -1,0 +1,20 @@
+name: cta_transit
+version: "1.0.0"
+profile: cta_transit
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  # CI rebuilds everything from scratch, so it only reads recent raw data to stay fast and cheap.
+  ci_lookback_days: 2
+
+models:
+  cta_transit:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table

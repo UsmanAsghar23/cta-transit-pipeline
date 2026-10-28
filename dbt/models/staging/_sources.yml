@@ -1,0 +1,29 @@
+version: 2
+
+sources:
+  - name: raw
+    description: Raw data loaded by Airflow (COPY INTO from S3).
+    database: CTA
+    schema: RAW
+    tables:
+      - name: bus_positions_raw
+        description: One row per bus per Bus Tracker poll; the API record is kept as-is in `record`.
+        config:
+          loaded_at_field: loaded_at
+          freshness:
+            warn_after: {count: 2, period: hour}
+            error_after: {count: 6, period: hour}
+
+      - name: train_positions_raw
+        description: One row per train per Train Tracker poll; `record.line` is added by our client.
+        config:
+          loaded_at_field: loaded_at
+          freshness:
+            warn_after: {count: 2, period: hour}
+            error_after: {count: 6, period: hour}
+
+      - name: gtfs_routes
+      - name: gtfs_stops
+      - name: gtfs_trips
+      - name: gtfs_stop_times
+      - name: gtfs_calendar

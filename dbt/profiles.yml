@@ -1,0 +1,30 @@
+# Committed on purpose: every value comes from environment variables, so no secrets live here.
+# Run dbt with --profiles-dir . from this folder (or set DBT_PROFILES_DIR).
+cta_transit:
+  target: dev
+  outputs:
+    # Local development: key file on disk.
+    dev:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      authenticator: snowflake_jwt
+      private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH') }}"
+      role: "{{ env_var('SNOWFLAKE_ROLE', 'CTA_ROLE') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'CTA_WH') }}"
+      database: "{{ env_var('SNOWFLAKE_DATABASE', 'CTA') }}"
+      schema: ANALYTICS
+      threads: 4
+
+    # GitHub Actions: the PEM contents come from a repository secret, so no file is written.
+    ci:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      authenticator: snowflake_jwt
+      private_key: "{{ env_var('SNOWFLAKE_PRIVATE_KEY') }}"
+      role: "{{ env_var('SNOWFLAKE_ROLE', 'CTA_ROLE') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'CTA_WH') }}"
+      database: "{{ env_var('SNOWFLAKE_DATABASE', 'CTA') }}"
+      schema: CI
+      threads: 4

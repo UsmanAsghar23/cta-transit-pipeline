@@ -1,0 +1,120 @@
+version: 2
+
+# Chicago-area bounding box used for coordinate sanity checks (warn only:
+# one bad GPS ping shouldn't block a build).
+
+models:
+  - name: stg_bus_positions
+    description: One row per distinct bus position report, parsed from Bus Tracker JSON.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [vehicle_id, recorded_at]
+    columns:
+      - name: vehicle_id
+        data_tests: [not_null]
+      - name: route_id
+        data_tests: [not_null]
+      - name: recorded_at
+        description: Vehicle's own report time, Chicago local.
+        data_tests: [not_null]
+      - name: latitude
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 41.4
+                max_value: 42.3
+              config:
+                severity: warn
+      - name: longitude
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: -88.4
+                max_value: -87.4
+              config:
+                severity: warn
+      - name: is_delayed
+        data_tests: [not_null]
+      - name: ingested_at
+        description: When our pipeline fetched the record, UTC.
+        data_tests: [not_null]
+
+  - name: stg_train_positions
+    description: One row per distinct 'L' train position report, parsed from Train Tracker JSON.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [line, run_number, recorded_at]
+    columns:
+      - name: run_number
+        data_tests: [not_null]
+      - name: line
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [red, blue, brn, g, org, p, pink, y]
+      - name: recorded_at
+        data_tests: [not_null]
+      - name: latitude
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 41.4
+                max_value: 42.3
+              config:
+                severity: warn
+      - name: longitude
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: -88.4
+                max_value: -87.4
+              config:
+                severity: warn
+      - name: is_delayed
+        data_tests: [not_null]
+
+  - name: stg_gtfs_routes
+    columns:
+      - name: route_id
+        data_tests: [unique, not_null]
+      - name: mode
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [bus, train]
+
+  - name: stg_gtfs_stops
+    columns:
+      - name: stop_id
+        data_tests: [unique, not_null]
+
+  - name: stg_gtfs_trips
+    columns:
+      - name: trip_id
+        data_tests: [unique, not_null]
+      - name: route_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_gtfs_routes')
+                field: route_id
+
+  - name: stg_gtfs_stop_times
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [trip_id, stop_sequence]
+    columns:
+      - name: trip_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_gtfs_trips')
+                field: trip_id
+      - name: arrival_seconds
+        description: Seconds after the start of the service day; can exceed 86,400 for after-midnight trips.
+        data_tests: [not_null]

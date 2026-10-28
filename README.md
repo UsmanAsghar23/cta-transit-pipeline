@@ -85,6 +85,27 @@ astro dev run backfill create --dag-id cta_load_snowflake \
 
 **Known gap for v2.** Neither the bus API's `tatripid` nor `origtatripno` matched GTFS `schd_trip_id` in a sample of 365 live buses, so schedule matching will need a different join (likely route + block + start time).
 
+## Phase 5: dbt models and tests
+
+```bash
+source .venv/bin/activate
+pip install -r dbt/requirements.txt
+set -a; source .env; set +a          # SNOWFLAKE_ACCOUNT, SNOWFLAKE_USER, SNOWFLAKE_PRIVATE_KEY_PATH
+cd dbt
+dbt deps --profiles-dir .
+dbt build --profiles-dir .           # models + 38 tests
+dbt source freshness --profiles-dir .
+```
+
+| Model | Type | Notes |
+| --- | --- | --- |
+| `stg_bus_positions` | incremental (merge) | Parses Bus Tracker JSON; dedupes repeat pings of the same report |
+| `stg_train_positions` | incremental (merge) | Parses Train Tracker JSON; 0,0 coordinates become null |
+| `stg_gtfs_*` | views | Routes, stops, trips, stop times (times converted to seconds, including >24:00) |
+| `fct_delay_by_route_hour` | table | Pings, active vehicles, delayed pings, and on-time ratio per mode/route/hour |
+
+Incremental models only read rows loaded since the last run (with a 1-hour overlap that the merge absorbs). The `ci` target reads just the last 2 days of raw data, since CI always builds from scratch.
+
 ### API budget
 
 Bus Tracker allows 100,000 calls/day per key (CTA raised it from 50,000 in April 2024). With ~130 routes batched 10 per call, one poll is ~14 calls; every 3 minutes that's 480 polls × ~15 calls ≈ 7,200 calls/day. Train Tracker needs one call per poll for all 8 lines (480/day).
